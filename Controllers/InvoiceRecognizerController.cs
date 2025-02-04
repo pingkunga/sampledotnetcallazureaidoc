@@ -22,8 +22,23 @@ public class InvoiceRecognizerController : ControllerBase
 
         using (var stream = file.OpenReadStream())
         {
-            JsonDocument result = await _invoiceRecognizerService.AnalyzeDocumentAsync(stream);
-            return Ok(result);
+            try
+            {
+                JsonDocument result = await _invoiceRecognizerService.AnalyzeDocumentAsync(stream);
+                return Ok(result);
+            }
+            catch (HttpRequestException ex)
+            {
+                return StatusCode(500, $"Request error: {ex.Message}");
+            }
+            catch (TaskCanceledException)
+            {
+                return StatusCode(408, "The request timed out.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"An error occurred: {ex.Message}");
+            }
         }
     }
 }

@@ -7,59 +7,101 @@ using Microsoft.Extensions.Configuration;
 public class InvoiceRecognizerService
 {
     private readonly HttpClient _httpClient;
+
     private readonly string _endpoint;
     private readonly string _apiKey;
+    private readonly string _apiversion;
 
     public InvoiceRecognizerService(IConfiguration configuration)
     {
         _httpClient = new HttpClient();
-        _endpoint = configuration["DocumentIntelligentAPI:Endpoint"];
-        _apiKey = configuration["DocumentIntelligentAPI:ApiKey"];
+        _endpoint =
+            configuration["DocumentIntelligentAPI:Endpoint"]
+            ?? throw new ArgumentNullException(
+                nameof(configuration),
+                "Endpoint configuration is missing."
+            );
+        _apiKey =
+            configuration["DocumentIntelligentAPI:ApiKey"]
+            ?? throw new ArgumentNullException(
+                nameof(configuration),
+                "ApiKey configuration is missing."
+            );
+        _apiversion =
+            configuration["DocumentIntelligentAPI:ApiVersion"]
+            ?? throw new ArgumentNullException(
+                nameof(configuration),
+                "ApiVersion configuration is missing."
+            );
     }
 
     public async Task<JsonDocument> AnalyzeDocumentAsync(Stream documentStream)
     {
-        var request = new HttpRequestMessage
+        HttpRequestMessage analyzeRequest = new HttpRequestMessage
         {
             Method = HttpMethod.Post,
-            RequestUri = new Uri($"{_endpoint}/formrecognizer/documentModels/prebuilt-receipt:analyze?api-version=2023-07-31"),
+            RequestUri = new Uri(
+                $"{_endpoint}/formrecognizer/documentModels/prebuilt-receipt:analyze?api-version={_apiversion}"
+            ),
             Content = new StreamContent(documentStream)
         };
 
-        request.Headers.Add("Ocp-Apim-Subscription-Key", _apiKey);
-        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+        analyzeRequest.Headers.Add("Ocp-Apim-Subscription-Key", _apiKey);
+        analyzeRequest.Content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
 
-        var response = await _httpClient.SendAsync(request);
-        response.EnsureSuccessStatusCode();
+        HttpResponseMessage analyzeResponse = await _httpClient.SendAsync(analyzeRequest);
 
-        // Check if the response contains the header `apim-request-id`
-        if (response.Headers.Contains("apim-request-id"))
+        // Check if the response is successful
+        analyzeResponse.EnsureSuccessStatusCode();
+
+        if (!analyzeResponse.Headers.Contains("apim-request-id"))
         {
-            // Get the value of the header
-            var requestId = response.Headers.GetValues("apim-request-id").FirstOrDefault();
-            
-            var resultRequest = new HttpRequestMessage
+            throw new InvalidOperationException(
+                "Response does not contain the header 'apim-request-id'."
+            );
+        }
+
+        string requestId = analyzeResponse.Headers.GetValues("apim-request-id").FirstOrDefault() ?? string.Empty;
+
+        //===============================================================
+        string status = "running";
+        JsonDocument result = null;
+        while (status == "running" || status == "notStarted")
+        {
+            HttpRequestMessage resultRequest = new HttpRequestMessage
             {
                 Method = HttpMethod.Get,
-                RequestUri = new Uri($"{_endpoint}/formrecognizer/documentModels/prebuilt-receipt/analyzeResults/{requestId}?api-version=2023-07-31")
+                RequestUri = new Uri($"{_endpoint}/formrecognizer/documentModels/prebuilt-receipt/analyzeResults/{requestId}?api-version={_apiversion}")
             };
             resultRequest.Headers.Add("Ocp-Apim-Subscription-Key", _apiKey);
 
-            // Wait for the response
-            while (true)
+            HttpResponseMessage resultResponse = await _httpClient.SendAsync(resultRequest);
+            resultResponse.EnsureSuccessStatusCode();
+            
+            String resultJson = await resultResponse.Content.ReadAsStringAsync();
+            result = JsonDocument.Parse(resultJson);
+
+            status = result.RootElement.GetProperty("status").GetString();
+
+            if (status == "running")
             {
-                var resultResponse = await _httpClient.SendAsync(resultRequest);
-                resultResponse.EnsureSuccessStatusCode();
-                var resultJson = await resultResponse.Content.ReadAsStringAsync();
-                var result = JsonDocument.Parse(resultJson);
-                if (result.RootElement.GetProperty("status").GetString() == "succeeded")
-                {
-                    return result;
-                }
-                await Task.Delay(1000);
+                // Wait for a specific interval before polling again
+                await Task.Delay(TimeSpan.FromSeconds(1));
+            }
+
+            if (status == "failed")
+            {
+                throw new Exception("Document analysis failed.");
             }
         }
 
-        return null;
+        if ((result != null )&& (status == "succeeded"))
+        {
+            return result;
+        }
+        else 
+        {
+            throw new Exception("Document analysis failed.");
+        }
     }
 }
