@@ -2,8 +2,10 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Threading.Tasks;
+using InvoiceRecognizer.DTO;
 using Microsoft.Extensions.Configuration;
 
+namespace InvoiceRecognizer.Services;
 public class InvoiceRecognizerService
 {
     private readonly HttpClient _httpClient;
@@ -61,7 +63,8 @@ public class InvoiceRecognizerService
             );
         }
 
-        string requestId = analyzeResponse.Headers.GetValues("apim-request-id").FirstOrDefault() ?? string.Empty;
+        string requestId =
+            analyzeResponse.Headers.GetValues("apim-request-id").FirstOrDefault() ?? string.Empty;
 
         //===============================================================
         string status = "running";
@@ -71,13 +74,15 @@ public class InvoiceRecognizerService
             HttpRequestMessage resultRequest = new HttpRequestMessage
             {
                 Method = HttpMethod.Get,
-                RequestUri = new Uri($"{_endpoint}/formrecognizer/documentModels/prebuilt-receipt/analyzeResults/{requestId}?api-version={_apiversion}")
+                RequestUri = new Uri(
+                    $"{_endpoint}/formrecognizer/documentModels/prebuilt-receipt/analyzeResults/{requestId}?api-version={_apiversion}"
+                )
             };
             resultRequest.Headers.Add("Ocp-Apim-Subscription-Key", _apiKey);
 
             HttpResponseMessage resultResponse = await _httpClient.SendAsync(resultRequest);
             resultResponse.EnsureSuccessStatusCode();
-            
+
             String resultJson = await resultResponse.Content.ReadAsStringAsync();
             result = JsonDocument.Parse(resultJson);
 
@@ -95,13 +100,36 @@ public class InvoiceRecognizerService
             }
         }
 
-        if ((result != null )&& (status == "succeeded"))
+        if ((result != null) && (status == "succeeded"))
         {
             return result;
         }
-        else 
+        else
         {
             throw new Exception("Document analysis failed.");
         }
+    }
+
+    public async Task<ExtractReceiptDTO> ExtractReceipt(Stream documentStream)
+    {
+        JsonDocument result = await AnalyzeDocumentAsync(documentStream);
+
+        JsonElement fields = result.RootElement
+            .GetProperty("analyzeResult")
+            .GetProperty("documents")[0].GetProperty("fields");
+
+        // Extract the values
+        string merchantName = fields.GetProperty("MerchantName").GetProperty("valueString").GetString();
+        double total = fields.GetProperty("Total").GetProperty("valueNumber").GetDouble();
+        double totalTax = fields.GetProperty("TotalTax").GetProperty("valueNumber").GetDouble();
+        DateTime transactionDate = fields.GetProperty("TransactionDate").GetProperty("valueDate").GetDateTime();
+
+        return new ExtractReceiptDTO
+        {
+            MerchantName = merchantName,
+            Total = total,
+            TotalTax = totalTax,
+            TransactionDate = transactionDate
+        };
     }
 }
