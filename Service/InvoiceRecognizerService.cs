@@ -114,6 +114,14 @@ public class InvoiceRecognizerService
     {
         JsonDocument result = await AnalyzeDocumentAsync(documentStream);
 
+        // Extract the documents property and count the number of documents
+        JsonElement documents = result.RootElement.GetProperty("analyzeResult").GetProperty("documents");
+        if (documents.GetArrayLength() == 0)
+        {
+            throw new Exception("Document analysis failed.");
+        }
+        
+        //result.Documents can contain multiple documents, but we only get first one in this example
         JsonElement fields = result.RootElement
             .GetProperty("analyzeResult")
             .GetProperty("documents")[0].GetProperty("fields");
