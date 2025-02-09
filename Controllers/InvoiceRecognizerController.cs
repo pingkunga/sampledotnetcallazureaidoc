@@ -153,7 +153,7 @@ public class InvoiceRecognizerController : ControllerBase
                 }
 
                 double? _TotalTax = null;
-                if (document.Fields.TryGetValue("Total", out DocumentField TotalTaxField)
+                if (document.Fields.TryGetValue("TotalTotalTax", out DocumentField TotalTaxField)
                     && TotalTaxField.FieldType == DocumentFieldType.Currency)
                 {
                     _TotalTax = TotalTaxField.ValueCurrency.Amount;
