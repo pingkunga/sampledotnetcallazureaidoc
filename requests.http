@@ -1,0 +1,43 @@
+### Extract Receipt Request
+POST http://localhost:5291/api/InvoiceRecognizer/extractreceipt
+Content-Type: multipart/form-data
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="EtaxTest14333-2400311.pdf"
+Content-Type: application/pdf
+
+< /C:/Users/Chatr/ADI_TEST/EtaxTest14333-2400311.pdf
+--boundary--
+
+### Analyze SDK Request
+POST http://localhost:5291/api/InvoiceRecognizer/analyzesdk
+Content-Type: multipart/form-data
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="EtaxTest14333-2400311.pdf"
+Content-Type: application/pdf
+
+< /C:/Users/Chatr/ADI_TEST/EtaxTest14333-2400311.pdf
+--boundary--
+
+### Extract Receipt SDK Request
+POST http://localhost:5291/api/InvoiceRecognizer/extractreceiptsdk
+Content-Type: multipart/form-data
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="EtaxTest14333-2400311.pdf"
+Content-Type: application/pdf
+
+< /C:/Users/Chatr/ADI_TEST/EtaxTest14333-2400311.pdf
+--boundary--
+
+### Analyze Request
+POST http://localhost:5291/api/InvoiceRecognizer/analyze
+Content-Type: multipart/form-data
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="EtaxTest14333-2400311.pdf"
+Content-Type: application/pdf
+
+< /C:/Users/Chatr/ADI_TEST/EtaxTest14333-2400311.pdf
+--boundary--
